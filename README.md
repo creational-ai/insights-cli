@@ -8,15 +8,42 @@ is the throwaway public surface that `/deploy` publishes wheels to and that
 
 ## Install
 
-> **Placeholder.** The final, verified first-install incantation is authored in
-> Task 8 / Step 5 (`ux-cli-distribution` plan) once the first real Release is
-> published by `/deploy`. Until then, use the manual scp fallback documented in
-> the monorepo (`ux-design.md` Flow 6 / F3).
+First install on a new machine — one public URL, pasted once. Replace
+`vX.Y.Z` / `X.Y.Z` with a published release version (see "Always-fresh
+version" below), then run `insights upgrade` immediately:
 
 ```bash
-# (final command added in Step 5 — installs the latest published wheel via
-#  uv tool install from this repo's Releases, then `insights upgrade` self-updates)
+uv tool install https://github.com/creational-ai/insights-cli/releases/download/vX.Y.Z/insights-X.Y.Z-py3-none-any.whl
+insights upgrade   # mandatory, immediately after first install
 ```
+
+The literal `vX.Y.Z` above is **intentionally allowed to lag** the newest
+release: `/deploy` publishes Release assets here but **never commits to this
+repo**, so this README is not re-stamped per ship. That is by design — the
+trailing `insights upgrade` is the §8 self-heal: it reads the server's
+`GET /v1/cli/version` manifest and converges whatever you installed (an old
+literal tag, or the fresh tag) to the server's recommended version. Both the
+lagging literal and the always-fresh one-liner below land on the same place
+after that one mandatory `insights upgrade`.
+
+### Always-fresh version
+
+To resolve the newest published tag at any time (no lag):
+
+```bash
+gh release view --repo creational-ai/insights-cli --json tagName -q .tagName
+```
+
+Substitute the printed `vX.Y.Z` into the `uv tool install` URL above (the
+asset filename is `insights-X.Y.Z-py3-none-any.whl`, version without the
+leading `v`). Then run `insights upgrade` once.
+
+### scp fallback
+
+If `insights upgrade` is broken on a host, the legacy monorepo path
+(`uv build` → `scp dist/*.whl mbp:/tmp/` → `uv tool install --reinstall`)
+remains a supported recovery route — see `ux-design.md` Flow 6 / F3 in the
+private monorepo. It is the fallback, not the routine path.
 
 ## How it works
 

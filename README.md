@@ -127,7 +127,7 @@ $ insights project init
 # → scaffolds .insights/ (config.yaml + gitignored subdirs) and registers it on the Server
 
 $ cp ~/Downloads/sa-my-product.json .insights/creds/
-$ insights project sync-creds          # uploads the SA key to Genesis (mode 0600, atomic)
+$ insights project update              # lints, PATCHes metadata, ships bundle files, uploads the SA key to Genesis (mode 0600, atomic) — single 3-leg verb
 ```
 
 List the projects the Server knows about:
@@ -149,7 +149,7 @@ About to remove project 'my-product':
   Schedules: will sweep any insights-my-product-*.{service,timer} systemd units on Genesis
 
 This is destructive and cannot be undone.
-Recovery: re-issue SA key from GCP console + insights project sync-creds
+Recovery: re-issue SA key from GCP console + insights project update
 Continue? [y/N]: y
 ✓ Removed project 'my-product' (2 orphan systemd units swept by Server)
 ```

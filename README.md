@@ -102,6 +102,18 @@ config error: refusing to read ~/.insights/config: must be 0600 or 0400 (current
 
 > The token is a write-scope bearer your operator provisions on the Genesis Server; the CLI does not mint it. If you get `4` (auth error), confirm the value matches the current Server-side registration.
 
+**Verify your setup.** `insights version --full` is the one-line diagnostic that confirms which Server URL and which auth tier actually resolved:
+
+```bash
+$ insights version --full
+insights 0.2.5
+python 3.12.3
+server http://192.168.0.54:8004
+auth   ~/.insights/config [server.token]
+```
+
+The `auth` line names the winning tier (env var name, config field, or file path) — the fastest way to debug "is my token actually being read?". Bare `insights version` prints just the first line; `insights --version` / `insights --version --full` are byte-identical aliases. Always exits 0, even when no token is configured (shows `auth   <none>`).
+
 ## Working with projects
 
 A project lives in its product repo under `.insights/` (connection descriptor, bundles, generated reports). The daily verbs (`pull`, `generate`, `lint`, `ask`, `schedule status`) **walk up from your CWD** to the nearest `.insights/` — so you just `cd` into the repo and run the verb.
@@ -125,6 +137,29 @@ $ insights project list
 hexario
 my-product
 ```
+
+Remove a project (destructive — sweeps Server-side state + local `.insights/` + orphan systemd schedules in one verb):
+
+```bash
+$ cd ~/Development/my-product
+$ insights project remove my-product
+About to remove project 'my-product':
+  Server-side: rm -rf /home/pi/Dev/insights/projects/my-product (via DELETE /api/v1/projects/my-product on 192.168.0.54:8004)
+  Local: rm -rf /Users/you/Development/my-product/.insights (includes SA key at creds/sa-my-product.json)
+  Schedules: will sweep any insights-my-product-*.{service,timer} systemd units on Genesis
+
+This is destructive and cannot be undone.
+Recovery: re-issue SA key from GCP console + insights project sync-creds
+Continue? [y/N]: y
+✓ Removed project 'my-product' (2 orphan systemd units swept by Server)
+```
+
+| Flag | Effect |
+|------|--------|
+| `--yes` / `-y` | Skip the confirmation prompt |
+| `--keep-local` | DELETE Server-side only; preserve the local `.insights/` |
+
+The verb is idempotent: a second invocation prints `nothing to remove` (exit 3). If your CWD's `.insights/config.yaml` belongs to a *different* slug than the positional you typed, the local tree is left untouched and a stderr advisory names the mismatch — you can't accidentally `rm -rf` an unrelated project's workspace.
 
 Overriding the walked-up project:
 

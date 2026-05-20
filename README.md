@@ -272,9 +272,9 @@ The four version-compare outcomes (`packaging.Version`, never lexicographic):
 | `0` | Success (incl. already-current / compatible-nag for `upgrade`) |
 | `1` | Lint or partial-report issues (report still written where applicable) |
 | `2` | Usage / CLI argument error |
-| `3` | Config error — bad `~/.insights/config`, missing bundle, mode-not-0600, product mismatch / unparseable manifest version (`upgrade`) |
+| `3` | Config error — bad `~/.insights/config`, mode-not-0600, project or bundle not registered on Server (404 — run `insights project init` / `insights bundle init`), incomplete bundle, product mismatch / unparseable manifest version (`upgrade`) |
 | `4` | Authentication error — bad/expired bearer (401/403) |
-| `5` | File-system error — can't write report; wheel download or sha256 mismatch (`upgrade`) |
+| `5` | Transport / filesystem error — Server unreachable, can't write report; wheel download or sha256 mismatch (`upgrade`) |
 | `6` | Author-leg backend failure in `generate`; or `uv tool install` non-zero in `upgrade` — nothing on disk, re-run |
 | `7` | Host not ready (server-side prerequisite, e.g. user-linger) |
 | `8` | Review-leg backend failure in `generate` — narrative already on disk; re-run the review |

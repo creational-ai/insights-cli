@@ -24,7 +24,12 @@ This repo is the **public distribution surface only** — it carries no source, 
 - [Working with projects](#working-with-projects)
 - [Pulling data](#pulling-data)
 - [AI-authored narratives](#ai-authored-narratives)
+- [Listing past reports](#listing-past-reports)
+- [Asking questions](#asking-questions)
+- [Running BigQuery queries directly](#running-bigquery-queries-directly)
 - [Authoring report bundles](#authoring-report-bundles)
+- [Linting before commit](#linting-before-commit)
+- [Scheduling recurring reports](#scheduling-recurring-reports)
 - [Keeping the CLI current](#keeping-the-cli-current)
 - [Exit codes](#exit-codes)
 - [Source & contributing](#source--contributing)
@@ -87,7 +92,9 @@ token = "<32-char hex write-scope bearer>"   # must match a Server-side registra
 | What | Resolution order |
 |------|------------------|
 | Server URL | `INSIGHTS_SERVER_URL` env → `[server].url` in `~/.insights/config` → `http://127.0.0.1:8004` default |
-| Bearer token | `INSIGHTS_TOKEN_GENESIS_CLI` env → `[server].token` in `~/.insights/config` |
+| Bearer token | `INSIGHTS_TOKEN_GENESIS_CLI` env → `[server].token_env` in config (env-var name to look up — keep the literal in 1Password / a secret store) → `[server].token` in config (inline literal) |
+
+`token_env` and `token` are mutually exclusive — setting both in the config file exits 3.
 
 > A **missing** config file silently falls back to `127.0.0.1:8004` — which is unreachable from a Mac and will look like a connection failure. Always set `[server].url` to the Genesis LAN IP on a client machine. Malformed TOML exits 3.
 
@@ -106,8 +113,8 @@ config error: refusing to read ~/.insights/config: must be 0600 or 0400 (current
 
 ```bash
 $ insights version --full
-insights 0.2.5
-python 3.12.3
+insights 0.2.9
+python 3.12.10
 server http://192.168.0.54:8004
 auth   ~/.insights/config [server.token]
 ```
@@ -134,8 +141,17 @@ List the projects the Server knows about:
 
 ```bash
 $ insights project list
-hexario
-my-product
+SLUG       NAME       BQ                                                  GA4        BUNDLES
+hexario    Hexar.io   hexario-29339684.analytics_152569219/hexario_views  152569219  daily-standard,jetpack
+my-product My Thing   my-product-12345.analytics_67890/my_product_views   67890      weekly-deep
+```
+
+Mirror an existing project's authored state onto a fresh Mac (Server is the source of truth — overwrites tracked files only; preserves `creds/`, output reports, and saved queries):
+
+```bash
+$ cd ~/Development/my-product
+$ insights project clone my-product            # rebuild .insights/ from the Server
+$ insights project clone my-product --dry-run  # preview: prints "would write" + "would NOT touch" lists
 ```
 
 Remove a project (destructive — sweeps Server-side state + local `.insights/` + orphan systemd schedules in one verb):
@@ -189,8 +205,11 @@ INFO     wrote .insights/reports/daily-standard-adoption-2026-04-20_09-02-44-070
 
 | Flag | Purpose |
 |------|---------|
-| `--window <Nd>` | Lookback window, e.g. `7d`, `30d` (bundle default if omitted) |
+| `--window <spec>` | Lookback window: `1d` (default), `7d`, `Nd`, `today`, `all`, or `YYYY-MM-DD` |
 | `--section <id>` | Dump a single bundle section instead of all |
+| `--out <path>` | Write a second copy at this path. The Server's canonical copy under `.insights/reports/<run_id>.md` is always written too |
+| `--no-overwrite` | When `--out` is set, refuse to clobber an existing file at the supplied path |
+| `--verbose` / `-v` | Print the raw HTTP response body to stderr |
 
 > `pull` is read-only and runs a server-side lint pre-flight — a bundle with a silent-wrongness pattern (lexicographic `ver` compare, raw `events_*`, unknown indicator) exits 1 with `<file>:<line>: <rule>: <message>` and writes nothing.
 
@@ -208,10 +227,70 @@ INFO     wrote .insights/reports/daily-standard-2026-04-20_08-18-32-0700.md (103
 
 | Flag | Purpose |
 |------|---------|
-| `--window <Nd>` | Lookback window |
+| `--window <spec>` | Lookback window: `all` (default), `today`, `Nd`, or `YYYY-MM-DD` |
 | `--no-review` | Skip the review pass — faster when iterating interactively |
+| `--out <path>` | Write a second copy at this path. The Server's canonical copy under `.insights/reports/<run_id>.md` is always written too |
+| `--no-overwrite` / `--overwrite` | Refuse to clobber an existing `--out` file (default). Pass `--overwrite` to allow replacement |
+| `--verbose` / `-v` | Print the raw HTTP response body to stderr |
 
-> `generate` is one synchronous call; nothing lands on disk if the author leg fails (exit 6) — just re-run. If the review leg fails (exit 8) the narrative is already written; re-run only the review.
+> `generate` is one synchronous call; nothing lands on disk if the author leg fails (exit 6) — just re-run. If the review leg fails (exit 8) the narrative is already written; re-run only the review. Under substrate throttle the verb exits 75 (BSD `EX_TEMPFAIL`) — re-run after the throttle clears.
+
+## Listing past reports
+
+`insights report list` shows the most recent narrative reports under `.insights/reports/` for the current project:
+
+```bash
+$ cd ~/Development/hexario-revive
+$ insights report list                  # default: 3 most recent
+$ insights report list --latest 10      # last 10
+$ insights report list --output json    # machine-readable
+```
+
+| Flag | Purpose |
+|------|---------|
+| `--latest <N>` | Number of most recent reports to show (default `3`) |
+| `--slug <slug>` | Override the walked-up project |
+| `--output table\|json\|yaml` | Output format (default `table`) |
+
+## Asking questions
+
+`insights ask "<question>" <bundle>` ranks the bundle's sections + the project's saved queries by token overlap with your question — useful for "what should I look at first?" before diving into a `pull` or a `query run`:
+
+```bash
+$ cd ~/Development/hexario-revive
+$ insights ask "where are users dropping off in onboarding?" daily-standard
+```
+
+Three positional shapes are accepted (count-based disambiguation):
+
+| Form | When |
+|------|------|
+| `ask "<question>" <bundle>` | inside a workspace; slug walks up |
+| `ask <slug> <bundle> "<question>"` | explicit slug — works anywhere |
+| `--slug <slug>` | flag override on either form |
+
+## Running BigQuery queries directly
+
+The `query` sub-app runs ad-hoc SQL against the project's BigQuery views. Saved queries live in `.insights/queries/<name>.sql` (each starts with a `-- <description>` first-line comment for discovery).
+
+```bash
+$ cd ~/Development/hexario-revive
+
+$ insights query list                         # all saved queries with descriptions
+$ insights query run user-funnel              # run queries/user-funnel.sql
+$ insights query run --inline 'SELECT COUNT(*) FROM `proj.dataset.v_events` WHERE event_date = CURRENT_DATE()'
+$ insights query candidates                   # rank recurring patterns from query_log.jsonl for promotion to saved queries
+```
+
+| `query run` flag | Purpose |
+|------------------|---------|
+| `--inline <sql>` | Run inline SQL instead of a saved query (always linted; exits 3 on lint failure) |
+| `--window <spec>` | Lookback window applied via `{window}` template substitution |
+| `--out <path>` | Write results to a file (overwrites unless `--no-overwrite`) |
+| `--no-overwrite` | Refuse to clobber `--out` path if it exists |
+| `--verbose` / `-v` | Enable DEBUG logging |
+
+`query list` and `query candidates` both accept `--output table|json|yaml`.
 
 ## Authoring report bundles
 
@@ -233,7 +312,53 @@ $ insights bundle remove weekly-deep
 
 > `bundle init` is idempotent in the **Server-outage-recovery** sense: re-running after a failed POST recovers cleanly via a 4-state (local × Server) probe. When both local and Server already have the bundle it refuses with exit 3 ("already aligned" — use `insights project update` to ship edits). A partial local scaffold is re-completed; content you already authored to the 3 required files is preserved.
 
+Browse the indicators a bundle's `design.yaml` can reference:
+
+```bash
+$ insights compute list                        # every registered indicator computer + its description
+```
+
+If your project ships its own BigQuery views (the standard contract — `.insights/views.sql` defines the project's `v_*` views that bundle queries read from), deploy them after edits:
+
+```bash
+$ insights views deploy                        # deploys .insights/views.sql to BigQuery using the project's SA key
+```
+
 Every verb has `--help` for its full flag surface, and the list verbs (`bundle list`, `project list`, `report list`, `query list`, `compute list`) accept `--output json|yaml|table`.
+
+## Linting before commit
+
+`insights lint` runs all 6 lint rules against a bundle (lexicographic `ver` compare, raw `events_*` table reads, unknown indicator names, etc.) — run it before committing bundle edits to catch silent-wrongness patterns the Server's pre-flight would also catch:
+
+```bash
+$ cd ~/Development/hexario-revive
+$ insights lint daily-standard           # canonical: <bundle>, slug walks up
+$ insights lint hexario daily-standard   # backwards-compat: <slug> <bundle>
+```
+
+Exits 0 when clean, 3 on any issue with `<file>:<line>: <rule>: <message>`.
+
+## Scheduling recurring reports
+
+The Server runs scheduled reports via systemd user timers on Genesis. The `schedule` sub-app lets you reconcile a project's `.insights/schedule.yaml` into live units and inspect their state — from any Mac shell:
+
+```bash
+$ cd ~/Development/hexario-revive
+$ insights schedule list                       # all projects' schedules + live systemd state
+$ insights schedule list hexario               # one project only
+$ insights schedule apply --dry-run            # preview the desired-vs-actual diff without writing
+$ insights schedule apply                      # reconcile yaml → systemd user timers (whole-host)
+$ insights schedule apply hexario              # reconcile just one project
+$ insights schedule status morning             # status + most-recent log tail for <bundle>/<name>
+```
+
+| Verb | Purpose |
+|------|---------|
+| `schedule list [<slug>]` | All schedules + live systemd state (TABLE or `--format json`) |
+| `schedule apply [<slug>] [--dry-run]` | Reconcile `schedule.yaml` → on-disk units; `--dry-run` shows the plan |
+| `schedule status <name>` | Status + log tail for `<slug>/<name>` (slug walks up; or pass `<slug> <name>` explicitly) |
+
+> `schedule apply` exits 7 (`HOST_NOT_READY`) when systemd-user linger isn't enabled on the Server — the precheck output names the exact `loginctl enable-linger pi` fix.
 
 ## Keeping the CLI current
 
@@ -241,16 +366,18 @@ Every verb has `--help` for its full flag surface, and the list verbs (`bundle l
 
 ```bash
 $ insights upgrade
-Already at v0.2.4
+Already at v0.2.9
 ```
 
 When a required upgrade is available it downloads, verifies, and reinstalls; when an upgrade is *available but you're still compatible* it prints a nag and does nothing (intentional — re-run once it becomes required):
 
 ```bash
 $ insights upgrade
-An upgrade is available: v0.2.3 → v0.2.5 (you are still compatible — min v0.2.0).
+An upgrade is available: v0.2.8 → v0.2.9 (you are still compatible — min v0.2.0).
 Re-run `insights upgrade` once it becomes a required upgrade, or pin manually.
 ```
+
+> `insights upgrade` shells out to `uv tool install --reinstall`, so `uv` must be discoverable on `$PATH` when the verb runs. Interactive shells get this via your normal shell rc; non-interactive contexts (cron, raw `ssh host 'insights upgrade'`) may need an explicit `export PATH="$HOME/.local/bin:$PATH"` first.
 
 The four version-compare outcomes (`packaging.Version`, never lexicographic):
 
@@ -270,14 +397,15 @@ The four version-compare outcomes (`packaging.Version`, never lexicographic):
 | Code | Meaning |
 |------|---------|
 | `0` | Success (incl. already-current / compatible-nag for `upgrade`) |
-| `1` | Lint or partial-report issues (report still written where applicable) |
+| `1` | Lint or partial-report issues (report still written where applicable); CLI<>Server skew on a list verb |
 | `2` | Usage / CLI argument error |
-| `3` | Config error — bad `~/.insights/config`, mode-not-0600, project or bundle not registered on Server (404 — run `insights project init` / `insights bundle init`), incomplete bundle, product mismatch / unparseable manifest version (`upgrade`) |
+| `3` | Config error — bad `~/.insights/config`, mode-not-0600, project or bundle not registered on Server (404 — run `insights project init` / `insights bundle init`), incomplete bundle, product mismatch / unparseable manifest version (`upgrade`), `schedule apply` calendar-format precheck |
 | `4` | Authentication error — bad/expired bearer (401/403) |
-| `5` | Transport / filesystem error — Server unreachable, can't write report; wheel download or sha256 mismatch (`upgrade`) |
+| `5` | Transport / filesystem error — Server unreachable, can't write report; wheel download or sha256 mismatch (`upgrade`); `schedule apply` Server-reported `apply_failed` |
 | `6` | Author-leg backend failure in `generate`; or `uv tool install` non-zero in `upgrade` — nothing on disk, re-run |
-| `7` | Host not ready (server-side prerequisite, e.g. user-linger) |
+| `7` | Host not ready — server-side prerequisite (e.g. systemd-user linger not enabled for `schedule apply`) |
 | `8` | Review-leg backend failure in `generate` — narrative already on disk; re-run the review |
+| `75` | Substrate throttle (BSD `EX_TEMPFAIL`) — re-run after the throttle clears |
 
 ## Source & contributing
 

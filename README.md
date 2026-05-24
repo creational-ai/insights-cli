@@ -144,7 +144,7 @@ Remove a project (destructive — sweeps Server-side state + local `.insights/` 
 $ cd ~/Development/my-product
 $ insights project remove my-product
 About to remove project 'my-product':
-  Server-side: rm -rf /home/pi/Dev/insights/projects/my-product (via DELETE /api/v1/projects/my-product on 192.168.0.54:8004)
+  Server-side: rm -rf /home/pi/Dev/insights/projects/my-product (via DELETE /v1/projects/my-product on 192.168.0.54:8004)
   Local: rm -rf /Users/you/Development/my-product/.insights (includes SA key at creds/sa-my-product.json)
   Schedules: will sweep any insights-my-product-*.{service,timer} systemd units on Genesis
 

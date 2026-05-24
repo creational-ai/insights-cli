@@ -290,7 +290,7 @@ $ insights query candidates                   # rank recurring patterns from que
 | `--no-overwrite` | Refuse to clobber `--out` path if it exists |
 | `--verbose` / `-v` | Enable DEBUG logging |
 
-`query list` and `query candidates` both accept `--output table|json|yaml`.
+`query list` accepts `--output table|json|yaml`. `query candidates` accepts `--min-runs <N>` (default 3) and `--days <N>` (default 7) to tune the ranker, plus `--output table|json|yaml`.
 
 ## Authoring report bundles
 
@@ -309,6 +309,8 @@ List a project's bundles, or remove one:
 $ insights bundle list --output table
 $ insights bundle remove weekly-deep
 ```
+
+`bundle remove` mirrors `project remove`'s safety profile — interactive confirmation by default, `--yes` / `-y` to skip the prompt, `--keep-local` to DELETE Server-side only.
 
 > `bundle init` is idempotent in the **Server-outage-recovery** sense: re-running after a failed POST recovers cleanly via a 4-state (local × Server) probe. When both local and Server already have the bundle it refuses with exit 3 ("already aligned" — use `insights project update` to ship edits). A partial local scaffold is re-completed; content you already authored to the 3 required files is preserved.
 
@@ -359,6 +361,8 @@ $ insights schedule status morning             # status + most-recent log tail f
 | `schedule status <name>` | Status + log tail for `<slug>/<name>` (slug walks up; or pass `<slug> <name>` explicitly) |
 
 > `schedule apply` exits 7 (`HOST_NOT_READY`) when systemd-user linger isn't enabled on the Server — the precheck output names the exact `loginctl enable-linger pi` fix.
+
+> A `schedule reconcile` escape hatch also exists for debugging the engine in isolation from the Server (engine-direct, bypasses the Server-mediated path). Use `schedule apply` for normal operation — `reconcile` is only for isolating reconciler-vs-Server-mediation bugs.
 
 ## Keeping the CLI current
 

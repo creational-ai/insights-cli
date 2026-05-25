@@ -370,27 +370,28 @@ $ insights schedule status morning             # status + most-recent log tail f
 
 ```bash
 $ insights upgrade
-Already at v0.2.9
+Already at v0.2.11
 ```
 
-When a required upgrade is available it downloads, verifies, and reinstalls; when an upgrade is *available but you're still compatible* it prints a nag and does nothing (intentional — re-run once it becomes required):
+When a newer release exists it downloads, verifies, and reinstalls:
 
 ```bash
 $ insights upgrade
-An upgrade is available: v0.2.8 → v0.2.9 (you are still compatible — min v0.2.0).
-Re-run `insights upgrade` once it becomes a required upgrade, or pin manually.
+Downloading insights-0.2.12-py3-none-any.whl …
+Verified sha256 against server manifest.
+Reinstalling …
+Upgraded v0.2.11 → v0.2.12. Re-run `insights --version` to confirm.
 ```
 
 > `insights upgrade` shells out to `uv tool install --reinstall`, so `uv` must be discoverable on `$PATH` when the verb runs. Interactive shells get this via your normal shell rc; non-interactive contexts (cron, raw `ssh host 'insights upgrade'`) may need an explicit `export PATH="$HOME/.local/bin:$PATH"` first.
 
-The four version-compare outcomes (`packaging.Version`, never lexicographic):
+The three version-compare outcomes (`packaging.Version`, never lexicographic) against the server's `cli_recommended`:
 
 | Local vs recommended | Behavior |
 |----------------------|----------|
 | equal | "Already at vX.Y.Z" — exit 0 |
 | newer | informational — exit 0 |
-| older but ≥ min-compatible | upgrade-available nag, **no download/install** — exit 0 |
-| older than min-compatible | download → sha256-verify → `uv tool install --reinstall` |
+| older | download → sha256-verify → `uv tool install --reinstall` |
 
 > **Two independent trust roots.** The server publishes the wheel's sha256 through a bearer-auth metadata endpoint; the wheel bytes come unauthenticated from this repo's public GitHub Release. `upgrade` sha256's the downloaded bytes and compares to the server-published digest **before** any install runs — a mismatch aborts with the prior install untouched. The server never serves wheel bytes, only metadata.
 
@@ -400,7 +401,7 @@ The four version-compare outcomes (`packaging.Version`, never lexicographic):
 
 | Code | Meaning |
 |------|---------|
-| `0` | Success (incl. already-current / compatible-nag for `upgrade`) |
+| `0` | Success (incl. already-current for `upgrade`) |
 | `1` | Lint or partial-report issues (report still written where applicable); CLI<>Server skew on a list verb |
 | `2` | Usage / CLI argument error |
 | `3` | Config error — bad `~/.insights/config`, mode-not-0600, project or bundle not registered on Server (404 — run `insights project init` / `insights bundle init`), incomplete bundle, product mismatch / unparseable manifest version (`upgrade`), `schedule apply` calendar-format precheck |

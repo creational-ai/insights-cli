@@ -71,11 +71,10 @@ chmod 600 ~/.insights/config
 ```bash
 $ cd ~/Development/hexario-revive
 $ insights pull daily-standard --window 5d
-
-INFO     wrote .insights/reports/daily-standard-2026-04-20_08-50-12-0700-data.md (4842 bytes)
+wrote daily-standard-2026-04-20_08-50-12-0700-data
 ```
 
-That's it — the CLI resolved the project from the repo's `.insights/`, authenticated from `~/.insights/config`, ran the pull server-side on Genesis, and wrote the report back into your repo. No slug, no flags, no server login.
+That's it — the CLI resolved the project from the repo's `.insights/`, authenticated from `~/.insights/config`, and ran the pull server-side on Genesis. The report lives on Genesis at `projects/hexario/reports/<run_id>.md`; discover it via `insights report list`, or pass `--out <path>` on the next run to also write a Mac-local copy. No slug, no flags, no server login.
 
 ## Configuration
 
@@ -191,16 +190,14 @@ Overriding the walked-up project:
 
 ```bash
 $ insights pull daily-standard --window 5d
-
-INFO     wrote .insights/reports/daily-standard-2026-04-20_08-50-12-0700-data.md (4842 bytes)
+wrote daily-standard-2026-04-20_08-50-12-0700-data
 ```
 
 One section only (filename gains the section before `-data`):
 
 ```bash
 $ insights pull daily-standard --section adoption --window 7d
-
-INFO     wrote .insights/reports/daily-standard-adoption-2026-04-20_09-02-44-0700-data.md (1318 bytes)
+wrote daily-standard-adoption-2026-04-20_09-02-44-0700-data
 ```
 
 | Flag | Purpose |
@@ -219,8 +216,7 @@ INFO     wrote .insights/reports/daily-standard-adoption-2026-04-20_09-02-44-070
 
 ```bash
 $ insights generate daily-standard --window 5d
-
-INFO     wrote .insights/reports/daily-standard-2026-04-20_08-18-32-0700.md (10301 bytes)
+wrote daily-standard-2026-04-20_08-18-32-0700
 ```
 
 ~2–5 min wall-time on Pi5 with the default substrate (~2–3 min author + ~10s review for `daily-standard`).
@@ -241,14 +237,18 @@ INFO     wrote .insights/reports/daily-standard-2026-04-20_08-18-32-0700.md (103
 
 ```bash
 $ cd ~/Development/hexario-revive
-$ insights report list                  # default: 3 most recent
-$ insights report list --latest 10      # last 10
-$ insights report list --output json    # machine-readable
+$ insights report list                                # default: 3 most recent
+$ insights report list --latest 10                    # last 10
+$ insights report list --design daily-standard        # filter to one bundle
+$ insights report list --output json                  # machine-readable
 ```
+
+TABLE columns: `FILENAME TS BUNDLE SIZE RUN_ID`. `SIZE` is human-readable (`512B`, `12.3K`, `4.7M`); JSON/YAML output carries the raw byte count as the `bytes` int field.
 
 | Flag | Purpose |
 |------|---------|
-| `--latest <N>` | Number of most recent reports to show (default `3`) |
+| `--latest <N>` | Number of most recent reports to show (default `3`, range `1..100`) |
+| `--design <name>` | Narrow results to one bundle (e.g., `daily-standard`) |
 | `--slug <slug>` | Override the walked-up project |
 | `--output table\|json\|yaml` | Output format (default `table`) |
 
@@ -380,7 +380,7 @@ $ insights upgrade
 Downloading insights-0.2.12-py3-none-any.whl …
 Verified sha256 against server manifest.
 Reinstalling …
-Upgraded v0.2.11 → v0.2.12. Re-run `insights --version` to confirm.
+Upgraded v0.2.11 → v0.2.12. Re-run `insights version` to confirm.
 ```
 
 > `insights upgrade` shells out to `uv tool install --reinstall`, so `uv` must be discoverable on `$PATH` when the verb runs. Interactive shells get this via your normal shell rc; non-interactive contexts (cron, raw `ssh host 'insights upgrade'`) may need an explicit `export PATH="$HOME/.local/bin:$PATH"` first.
@@ -406,9 +406,9 @@ The three version-compare outcomes (`packaging.Version`, never lexicographic) ag
 | Code | Meaning |
 |------|---------|
 | `0` | Success (incl. already-current for `upgrade`) |
-| `1` | Lint or partial-report issues (report still written where applicable); CLI<>Server skew on a list verb |
+| `1` | Partial-report issues (sections may emit `> Error:` sentinels; report still written); or genuine CLI<>Server version skew on an unknown URI |
 | `2` | Usage / CLI argument error |
-| `3` | Config error — bad `~/.insights/config`, mode-not-0600, project or bundle not registered on Server (404 — run `insights project init` / `insights bundle init`), incomplete bundle, product mismatch / unparseable manifest version (`upgrade`), `schedule apply` calendar-format precheck |
+| `3` | Config / operator-fixable input — bad `~/.insights/config`, mode-not-0600, project or bundle not registered on Server (`/errors/project-not-found`, `/errors/bundle-not-found` — run `insights project init` / `insights bundle init`, OR check the name with `insights bundle list`), incomplete bundle (`/errors/bundle-incomplete`), unknown `--section` (`/errors/unknown-section`), request-payload validation (`/errors/invalid-request-payload` — e.g. `--latest` out of `1..100`, `--window` shape or invalid calendar component), bundle lint failure (`/errors/lint-failed`), product mismatch / unparseable manifest version (`upgrade`), `schedule apply` calendar-format precheck |
 | `4` | Authentication error — bad/expired bearer (401/403) |
 | `5` | Transport / filesystem error — Server unreachable, can't write report; wheel download or sha256 mismatch (`upgrade`); `schedule apply` Server-reported `apply_failed` |
 | `6` | Author-leg backend failure in `generate`; or `uv tool install` non-zero in `upgrade` — nothing on disk, re-run |

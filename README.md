@@ -290,7 +290,7 @@ $ insights query candidates                   # rank recurring patterns from que
 | `--no-overwrite` | Refuse to clobber `--out` path if it exists |
 | `--verbose` / `-v` | Enable DEBUG logging |
 
-`query list` accepts `--output table|json|yaml`. `query candidates` accepts `--min-runs <N>` (default 3) and `--days <N>` (default 7) to tune the ranker, plus `--output table|json|yaml`.
+`query list` accepts `--output table|json|yaml`. `query candidates` accepts `--min-runs <N>` (default 3) and `--days <N>` (default 7) to tune the ranker; output is a markdown table (no `--output` flag).
 
 ## Authoring report bundles
 
@@ -396,6 +396,10 @@ The three version-compare outcomes (`packaging.Version`, never lexicographic) ag
 > **Two independent trust roots.** The server publishes the wheel's sha256 through a bearer-auth metadata endpoint; the wheel bytes come unauthenticated from this repo's public GitHub Release. `upgrade` sha256's the downloaded bytes and compares to the server-published digest **before** any install runs — a mismatch aborts with the prior install untouched. The server never serves wheel bytes, only metadata.
 
 **scp fallback.** If `insights upgrade` is broken on a host, the legacy path (`uv build` → `scp dist/*.whl` → `uv tool install --reinstall`) from the private monorepo remains a supported recovery route. It is the fallback, not the routine path.
+
+## Troubleshooting
+
+**`--show-completion` reports `"Shell  not supported."` over SSH.** Upstream typer/click shell detection requires an interactive TTY. Under a non-interactive SSH session (`ssh host 'insights --show-completion'`), the detection falls back to empty string and renders the cosmetic double-space message. Workaround: pass the shell name explicitly from an interactive terminal on the local machine — e.g., `insights --install-completion zsh` (or `bash`) from the Mac's local terminal, not over SSH.
 
 ## Exit codes
 

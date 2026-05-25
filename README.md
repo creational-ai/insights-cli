@@ -207,7 +207,7 @@ INFO     wrote .insights/reports/daily-standard-adoption-2026-04-20_09-02-44-070
 |------|---------|
 | `--window <spec>` | Lookback window: `1d` (default), `7d`, `Nd`, `today`, `all`, or `YYYY-MM-DD` |
 | `--section <id>` | Dump a single bundle section instead of all |
-| `--out <path>` | Write a second copy at this path. The Server's canonical copy under `.insights/reports/<run_id>.md` is always written too |
+| `--out <path>` | Write a Mac-local copy at this path. **Without `--out`, no Mac-local file is created** — the report lives only on Genesis under `projects/<slug>/reports/<run_id>.md` and is discoverable via `insights report list` |
 | `--no-overwrite` | When `--out` is set, refuse to clobber an existing file at the supplied path |
 | `--verbose` / `-v` | Print the raw HTTP response body to stderr |
 
@@ -229,7 +229,7 @@ INFO     wrote .insights/reports/daily-standard-2026-04-20_08-18-32-0700.md (103
 |------|---------|
 | `--window <spec>` | Lookback window: `all` (default), `today`, `Nd`, or `YYYY-MM-DD` |
 | `--no-review` | Skip the review pass — faster when iterating interactively |
-| `--out <path>` | Write a second copy at this path. The Server's canonical copy under `.insights/reports/<run_id>.md` is always written too |
+| `--out <path>` | Write a Mac-local copy at this path. **Without `--out`, no Mac-local file is created** — the report lives only on Genesis under `projects/<slug>/reports/<run_id>.md` and is discoverable via `insights report list` |
 | `--no-overwrite` / `--overwrite` | Refuse to clobber an existing `--out` file (default). Pass `--overwrite` to allow replacement |
 | `--verbose` / `-v` | Print the raw HTTP response body to stderr |
 

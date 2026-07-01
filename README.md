@@ -362,7 +362,7 @@ $ insights schedule status morning             # status + most-recent log tail f
 
 > `schedule apply` exits 7 (`HOST_NOT_READY`) when systemd-user linger isn't enabled on the Server — the precheck output names the exact `loginctl enable-linger pi` fix.
 
-> A `schedule reconcile` escape hatch also exists for debugging the engine in isolation from the Server (engine-direct, bypasses the Server-mediated path). Use `schedule apply` for normal operation — `reconcile` is for isolating reconciler-vs-Server-mediation bugs, plus one operational case: whole-host `reconcile` (no slug) is the sweep path for a deleted project's orphaned units and the Server-down fallback (see `CLAUDE.md` → Removing a project).
+> A `schedule reconcile` escape hatch also exists for debugging the engine in isolation from the Server (engine-direct, bypasses the Server-mediated path). Use `schedule apply` for normal operation — `reconcile` is for isolating reconciler-vs-Server-mediation bugs, plus one operational case: whole-host `reconcile` (no slug) is the sweep path for a deleted project's orphaned units and the Server-down fallback. (`apply` only reconciles projects the Server still discovers, so a deleted slug's units never enter its scans — after removing a project directory, run whole-host `reconcile` to sweep its leftover timers.)
 
 ## Keeping the CLI current
 
